@@ -2,8 +2,14 @@ import random
 import sqlite3
 import csv
 from datetime import datetime
-# Assicurati di aver installato fpdf2: pip install fpdf2
 from fpdf import FPDF
+from openai import OpenAI
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+OPENAPI_KEY = os.getenv('OPENAPI_KEY')
+client = OpenAI(api_key=OPENAPI_KEY)
 
 # --- Database Esercizi (Definito in precedenza) ---
 ESERCIZI_CON_TIPOLOGIA = {
@@ -111,6 +117,8 @@ SERIE_IPERTROFIA, REPS_IPERTROFIA, RECUPERO_IPERTROFIA = '3-4', '8-12', '60-90s'
 SERIE_FORZA, REPS_FORZA, RECUPERO_FORZA = '4-5', '3-5', '120-180s'
 ESERCIZI_COMPOSTI_PER_GRUPPO, ESERCIZI_ISOLAMENTO_PER_GRUPPO = 1, 1
 
+# Configura OpenAI (imposta la tua API key come variabile d'ambiente OPENAI_API_KEY)
+
 # --- FUNZIONI DATABASE ---
 def setup_database():
     conn = sqlite3.connect('allenamenti.db')
@@ -143,20 +151,20 @@ def salva_scheda_su_db(nome_scheda, data_creazione, scheda_data, params):
     cursor = conn.cursor()
     cursor.execute('INSERT INTO schede (nome_scheda, data_creazione) VALUES (?, ?)', (nome_scheda, data_creazione))
     scheda_id = cursor.lastrowid
-    
+
     for giorno, esercizi in scheda_data.items():
         for ex in esercizi:
             cursor.execute('''
                 INSERT INTO esercizi_scheda (scheda_id, giorno_allenamento, nome_esercizio, tipologia, serie, ripetizioni, recupero)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (scheda_id, giorno, ex['nome'], ex['tipologia'], params['serie'], params['reps'], params['recupero']))
-    
+
     conn.commit()
     conn.close()
     print(f"✅ Scheda '{nome_scheda}' salvata correttamente nel database 'allenamenti.db'.")
 
 # --- FUNZIONI ESPORTAZIONE ---
-def crea_pdf_scheda(nome_scheda, scheda_data, params):
+def crea_pdf_scheda(nome_scheda, scheda_data, params, valutazione_llm=None):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
@@ -173,7 +181,7 @@ def crea_pdf_scheda(nome_scheda, scheda_data, params):
              pdf.add_page()
         pdf.set_font('Helvetica', 'B', 14)
         pdf.cell(0, 10, giorno.upper(), 0, 1, 'L')
-        
+
         pdf.set_font('Helvetica', 'B', 10)
         pdf.cell(col_widths[0], 8, 'Esercizio', 1, 0, 'C')
         pdf.cell(col_widths[1], 8, 'Tipologia', 1, 0, 'C')
@@ -190,6 +198,30 @@ def crea_pdf_scheda(nome_scheda, scheda_data, params):
             pdf.cell(col_widths[3], 8, params['reps'], 1, 0, 'C')
             pdf.cell(col_widths[4], 8, params['recupero'], 1, 1, 'C')
         pdf.ln(8)
+
+    # Aggiungi valutazione LLM se disponibile
+    if valutazione_llm:
+        pdf.add_page()
+        pdf.set_font('Helvetica', 'B', 14)
+        pdf.cell(0, 10, 'VALUTAZIONE LLM', 0, 1, 'C')
+        pdf.ln(5)
+        pdf.set_font('Helvetica', '', 10)
+        # Dividi il testo in righe per evitare overflow
+        lines = valutazione_llm.split('\n')
+        for line in lines:
+            if len(line) > 80:
+                words = line.split(' ')
+                current_line = ''
+                for word in words:
+                    if len(current_line + word) < 80:
+                        current_line += word + ' '
+                    else:
+                        pdf.cell(0, 5, current_line.strip(), 0, 1)
+                        current_line = word + ' '
+                if current_line:
+                    pdf.cell(0, 5, current_line.strip(), 0, 1)
+            else:
+                pdf.cell(0, 5, line, 0, 1)
     
     nome_file_pdf = f"{nome_scheda}.pdf"
     pdf.output(nome_file_pdf)
@@ -206,6 +238,36 @@ def crea_csv_scheda(nome_scheda, scheda_data, params):
                 writer.writerow([giorno, ex['nome'], ex['tipologia'], params['serie'], params['reps'], params['recupero']])
     print(f"📊 Scheda salvata correttamente nel file CSV: '{nome_file_csv}'.")
 
+# --- VALUTAZIONE LLM ---
+def valuta_scheda_con_llm(scheda_data, params, split_type):
+
+    # Prepara il testo della scheda per l'LLM
+    scheda_text = f"Scheda {split_type} - Obiettivo: {GOAL}\n\n"
+    for giorno, esercizi in scheda_data.items():
+        scheda_text += f"{giorno}:\n"
+        for ex in esercizi:
+            scheda_text += f"- {ex['nome']} ({ex['tipologia']}) - {params['serie']} serie x {params['reps']} reps, recupero {params['recupero']}\n"
+        scheda_text += "\n"
+
+    try:
+        response = client.chat.completions.create(model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "Sei un esperto personal trainer. Valuta questa scheda di allenamento considerando il bilanciamento muscolare con l'obiettivo ipertrofia. Fornisci feedback costruttivo in italiano riassumendo in pochissime righe ed illustrando eventuali esercizi da correggere."},
+            {"role": "user", "content": f"Valuta questa scheda di allenamento:\n\n{scheda_text}"}
+        ],
+        max_tokens=500,
+        temperature=0.7)
+
+        valutazione = response.choices[0].message.content
+        print("\n🤖 === VALUTAZIONE LLM DELLA SCHEDA ===")
+        print(valutazione)
+        print("=" * 50)
+        return valutazione
+
+    except Exception as e:
+        print(f"❌ Errore nella valutazione LLM: {e}")
+        return None
+
 # --- LOGICA PRINCIPALE ---
 def seleziona_esercizi(categorie, num_composti, num_isolamento):
     esercizi_selezionati = []
@@ -215,7 +277,7 @@ def seleziona_esercizi(categorie, num_composti, num_isolamento):
 
     composti = [e for e in lista_esercizi_completa if e['tipologia'] == 'Multi-articolare']
     isolamento = [e for e in lista_esercizi_completa if e['tipologia'] == 'Isolamento']
-    
+
     num_composti = min(num_composti, len(composti))
     num_isolamento = min(num_isolamento, len(isolamento))
 
@@ -225,7 +287,7 @@ def seleziona_esercizi(categorie, num_composti, num_isolamento):
 
 def genera_scheda(frequenza):
     scheda = {}
-    
+
     params = {
         'serie': SERIE_IPERTROFIA if GOAL == 'Ipertrofia' else SERIE_FORZA,
         'reps': REPS_IPERTROFIA if GOAL == 'Ipertrofia' else REPS_FORZA,
@@ -233,7 +295,7 @@ def genera_scheda(frequenza):
     }
 
     split_type = ""
-    
+
     if frequenza == 3:
         split_type = "Full-Body"
         giorni = ['Giorno 1 (Full Body A)', 'Giorno 2 (Full Body B)', 'Giorno 3 (Full Body A)']
@@ -288,7 +350,7 @@ def genera_scheda(frequenza):
                 esercizi_giorno.extend(seleziona_esercizi([ESERCIZI_CON_TIPOLOGIA['Legs']['Polpacci']], 0, 2))
                 esercizi_giorno.extend(seleziona_esercizi([random.choice(list(ESERCIZI_CON_TIPOLOGIA['Core'].values()))], 1, 0))
             scheda[giorno] = esercizi_giorno
-    
+
     else:
         # Questa parte non verrà eseguita grazie al controllo nell'__main__
         return
@@ -305,15 +367,18 @@ def genera_scheda(frequenza):
         print("\n")
 
 
+    # --- VALUTAZIONE LLM ---
+    valutazione_llm = valuta_scheda_con_llm(scheda, params, split_type)
+
     # --- SALVATAGGIO SU FILE E DB ---
     now = datetime.now()
     timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
     nome_scheda_file = f"./tmp/Scheda_{split_type}_{timestamp}"
-    
+
     print("\n--- INIZIO SALVATAGGIO ---")
     setup_database()
     salva_scheda_su_db(nome_scheda_file, now, scheda, params)
-    crea_pdf_scheda(nome_scheda_file, scheda, params)
+    crea_pdf_scheda(nome_scheda_file, scheda, params, valutazione_llm)
     crea_csv_scheda(nome_scheda_file, scheda, params)
     print("--- SALVATAGGIO COMPLETATO ---")
 
