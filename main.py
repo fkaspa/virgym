@@ -117,6 +117,20 @@ SERIE_IPERTROFIA, REPS_IPERTROFIA, RECUPERO_IPERTROFIA = '3-4', '8-12', '60-90s'
 SERIE_FORZA, REPS_FORZA, RECUPERO_FORZA = '4-5', '3-5', '120-180s'
 ESERCIZI_COMPOSTI_PER_GRUPPO, ESERCIZI_ISOLAMENTO_PER_GRUPPO = 1, 1
 
+# --- DATABASE INFORTUNI ---
+INFORTUNI_COMUNI = {
+    1: "Infiammazione sovraspinato",
+    2: "Tendinite bicipite brachiale",
+    3: "Sindrome da impingement spalla",
+    4: "Epicondilite laterale (gomito del tennista)",
+    5: "Lombalgia/mal di schiena",
+    6: "Tendinite rotulea (ginocchio del saltatore)",
+    7: "Fascite plantare",
+    8: "Sindrome del piriforme",
+    9: "Cervicalgia",
+    10: "Pubalgia"
+}
+
 # Configura OpenAI (imposta la tua API key come variabile d'ambiente OPENAI_API_KEY)
 
 # --- FUNZIONI DATABASE ---
@@ -268,6 +282,58 @@ def valuta_scheda_con_llm(scheda_data, params, split_type):
         print(f"❌ Errore nella valutazione LLM: {e}")
         return None
 
+# --- GESTIONE INFORTUNI ---
+def mostra_infortuni():
+    print("\n🏥 === GESTIONE INFORTUNI ===")
+    print("Seleziona il tipo di problema:")
+    for num, problema in INFORTUNI_COMUNI.items():
+        print(f"{num}. {problema}")
+    print("0. Torna al menu principale")
+
+def genera_esercizi_riabilitazione(infortunio):
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Sei un fisioterapista esperto. Fornisci una lista di 3 esercizi specifici per la riabilitazione/prevenzione del problema indicato. Includi descrizione breve, serie, ripetizioni e precauzioni. Rispondi in italiano."},
+                {"role": "user", "content": f"Fornisci esercizi di riabilitazione per: {infortunio}"}
+            ],
+            max_tokens=600,
+            temperature=0.7
+        )
+        
+        esercizi = response.choices[0].message.content
+        print(f"\n🔧 === ESERCIZI PER {infortunio.upper()} ===")
+        print(esercizi)
+        print("=" * 60)
+        
+        # Salva su file
+        nome_file = f"Riabilitazione_{infortunio.replace(' ', '_').replace('/', '_')}.md"
+        with open(nome_file, 'w', encoding='utf-8') as f:
+            f.write(f"ESERCIZI DI RIABILITAZIONE PER: {infortunio.upper()}\n")
+            f.write("=" * 60 + "\n\n")
+            f.write(esercizi)
+        print(f"💾 Esercizi salvati in: {nome_file}")
+        
+    except Exception as e:
+        print(f"❌ Errore nella generazione esercizi: {e}")
+
+def gestisci_infortuni():
+    while True:
+        mostra_infortuni()
+        try:
+            scelta = int(input("\nInserisci il numero: "))
+            if scelta == 0:
+                break
+            elif scelta in INFORTUNI_COMUNI:
+                infortunio = INFORTUNI_COMUNI[scelta]
+                genera_esercizi_riabilitazione(infortunio)
+                input("\nPremi INVIO per continuare...")
+            else:
+                print("Scelta non valida.")
+        except ValueError:
+            print("Input non valido.")
+
 # --- LOGICA PRINCIPALE ---
 def seleziona_esercizi(categorie, num_composti, num_isolamento):
     esercizi_selezionati = []
@@ -383,13 +449,32 @@ def genera_scheda(frequenza):
     print("--- SALVATAGGIO COMPLETATO ---")
 
 
+# --- MENU PRINCIPALE ---
+def menu_principale():
+    while True:
+        print("\n🏋️ === AUTOTRAIN - MENU PRINCIPALE ===")
+        print("1. Genera scheda di allenamento")
+        print("2. Gestione infortuni")
+        print("0. Esci")
+        
+        try:
+            scelta = int(input("\nSeleziona un'opzione: "))
+            if scelta == 0:
+                print("Arrivederci!")
+                break
+            elif scelta == 1:
+                frequenza_scelta = int(input("Inserisci la frequenza di allenamento settimanale (3, 4 o 5): "))
+                if frequenza_scelta in [3, 4, 5]:
+                    genera_scheda(frequenza_scelta)
+                else:
+                    print("Valore non valido. Scegli tra 3, 4 o 5.")
+            elif scelta == 2:
+                gestisci_infortuni()
+            else:
+                print("Scelta non valida.")
+        except ValueError:
+            print("Input non valido.")
+
 # --- ESECUZIONE SCRIPT ---
 if __name__ == '__main__':
-    try:
-        frequenza_scelta = int(input("Inserisci la frequenza di allenamento settimanale (3, 4 o 5): "))
-        if frequenza_scelta in [3, 4, 5]:
-            genera_scheda(frequenza_scelta)
-        else:
-            print("Valore non valido. Scegli tra 3, 4 o 5.")
-    except ValueError:
-        print("Input non valido. Per favore inserisci un numero.")
+    menu_principale()
