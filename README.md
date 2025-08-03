@@ -24,6 +24,7 @@ OPENAPI_KEY=your_openai_api_key_here
 
 ## Utilizzo
 
+### Interfaccia a Riga di Comando
 Esegui il programma:
 ```bash
 python main.py
@@ -33,6 +34,64 @@ Seleziona dal menu:
 1. **Genera scheda** - Crea una nuova scheda di allenamento
 2. **Gestione infortuni** - Ottieni esercizi di riabilitazione
 0. **Esci**
+
+### Interfaccia Web
+Avvia il server web:
+```bash
+python app.py
+```
+Apri il browser su `http://localhost:5001` per accedere all'interfaccia web.
+
+## Frontend Web (app.py)
+
+### Tecnologia
+Il frontend è sviluppato con **FastHTML**, un framework Python moderno che permette di creare applicazioni web con sintassi Python pura, senza necessità di template HTML separati.
+
+### Architettura Frontend
+```
+app.py
+├── Route principale ("/") - Homepage con menu
+├── Route generazione ("/genera") - Elaborazione schede
+├── Route infortuni ("/infortuni") - Gestione riabilitazione
+└── Route download ("/download/{filename}") - Scaricamento file
+```
+
+### Funzionalità Web
+
+#### Homepage Interattiva
+- **Form generazione schede**: Dropdown per selezione frequenza (3/4/5 giorni)
+- **Form gestione infortuni**: Menu a tendina con 10 problemi comuni
+- **Design responsive**: Layout centrato con stili CSS inline
+
+#### Generazione Schede Web
+La route `/genera` gestisce:
+- **Cattura output**: Intercetta l'output della funzione `genera_scheda()`
+- **Gestione file**: Crea directory `./tmp/` per file temporanei
+- **Link download**: Genera automaticamente link per PDF e CSV
+- **Visualizzazione risultati**: Mostra output formattato in pagina
+
+#### Sistema Download
+- **File PDF**: Schede formattate scaricabili
+- **File CSV**: Dati esportabili per analisi
+- **File Markdown**: Protocolli riabilitativi
+- **Gestione percorsi**: Supporta file in `./tmp/` e directory root
+
+#### Gestione Errori Web
+- **Try-catch globale**: Cattura eccezioni durante elaborazione
+- **Messaggi user-friendly**: Errori visualizzati in modo chiaro
+- **Navigazione**: Link di ritorno sempre disponibili
+
+### Integrazione Backend
+Il frontend importa direttamente da `main.py`:
+```python
+from main import genera_scheda, gestisci_infortuni, INFORTUNI_COMUNI
+```
+
+### Vantaggi FastHTML
+- **Sintassi Python pura**: Nessun template HTML separato
+- **Componenti riutilizzabili**: Elementi UI definiti come funzioni
+- **Routing semplice**: Decoratori per gestire le route
+- **Integrazione nativa**: Accesso diretto alle funzioni backend
 
 ## Logica del Programma (main.py)
 
@@ -134,9 +193,15 @@ main.py
 
 ## Requisiti
 
+### Backend (CLI)
 - Python 3.7+
 - OpenAI API key
 - Librerie: fpdf2, openai, python-dotenv
+
+### Frontend Web
+- Tutte le dipendenze backend
+- FastHTML framework
+- Server web integrato (porta 5001)
 
 ## Note Tecniche
 
