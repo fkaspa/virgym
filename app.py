@@ -1,9 +1,10 @@
 from fasthtml.common import *
-from main import genera_scheda, gestisci_infortuni, INFORTUNI_COMUNI, genera_esercizi_riabilitazione
+from main import genera_scheda, gestisci_infortuni, INFORTUNI_COMUNI, genera_esercizi_riabilitazione, ESERCIZI_CON_TIPOLOGIA
 import os
 import tempfile
+import json
 
-app, rt = fast_app()
+app, rt = fast_app(live=True)
 
 @rt("/")
 def get():
@@ -29,6 +30,27 @@ def get():
             ),
             
             Div(
+                H2("Selezione Gruppi Muscolari"),
+                P("Clicca sui gruppi muscolari che vuoi allenare:"),
+                Div(
+                    Div(
+                        Button("Fronte", id="front-btn", onclick="showFront()", style="margin-right: 10px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px;"),
+                        Button("Retro", id="back-btn", onclick="showBack()", style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px;"),
+                        create_body_diagram(),
+                        style="text-align: center; margin: 20px 0;"
+                    ),
+                    Div(
+                        H4("Gruppi Selezionati:"),
+                        Div(id="selected-muscles", style="min-height: 40px; padding: 10px; background: #f8f9fa; border-radius: 5px; margin: 10px 0;"),
+                        Button("Salva Selezione", id="save-selection", onclick="saveSelection()", style="margin-right: 10px;"),
+                        Button("Reset", onclick="resetSelection()"),
+                        style="margin-top: 20px;"
+                    )
+                ),
+                style="margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px;"
+            ),
+            
+            Div(
                 H2("Gestione Infortuni"),
                 Form(
                     Label("Seleziona il problema:", For="infortunio"),
@@ -42,7 +64,9 @@ def get():
                 style="margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px;"
             ),
             
-            style="max-width: 800px; margin: 0 auto; padding: 20px;"
+            muscle_selection_script(),
+            
+            style="max-width: 1000px; margin: 0 auto; padding: 20px;"
         )
     )
 
@@ -140,6 +164,19 @@ def post(infortunio: int):
             )
         )
 
+@rt("/save-muscles", methods=["POST"])
+def post(muscles: list):
+    try:
+        # Save muscle selection (you can extend this to generate custom workouts)
+        print(f"Gruppi muscolari selezionati: {muscles}")
+        
+        # Here you could integrate with your existing workout generation logic
+        # For example, filter exercises based on selected muscle groups
+        
+        return {"status": "success", "message": f"Selezione salvata: {', '.join(muscles)}"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 @rt("/download/{filename}")
 def get(filename: str):
     # Controlla se il file è nella directory tmp o nella root
@@ -153,6 +190,299 @@ def get(filename: str):
         return FileResponse(file_path)
     else:
         return "File non trovato", 404
+
+def create_body_diagram():
+    return Div(
+        # Front View
+        Div(
+            NotStr('''
+            <svg id="front-view" width="350" height="600" viewBox="0 0 350 600" style="border: 1px solid #ccc; border-radius: 10px;">
+                <!-- Head -->
+                <ellipse cx="175" cy="50" rx="30" ry="35" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                
+                <!-- Neck -->
+                <rect x="160" y="80" width="30" height="25" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                
+                <!-- Torso -->
+                <path d="M120 105 Q175 100 230 105 L240 200 Q175 210 110 200 Z" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                
+                <!-- Chest (Petto) -->
+                <ellipse cx="150" cy="140" rx="25" ry="20" fill="#e8f4fd" stroke="#007bff" stroke-width="2" 
+                         class="muscle-group" data-muscle="Petto" style="cursor: pointer;"/>
+                <ellipse cx="200" cy="140" rx="25" ry="20" fill="#e8f4fd" stroke="#007bff" stroke-width="2" 
+                         class="muscle-group" data-muscle="Petto" style="cursor: pointer;"/>
+                <text x="175" y="145" text-anchor="middle" font-size="12" font-weight="bold">PETTO</text>
+                
+                <!-- Shoulders (Spalle) -->
+                <ellipse cx="105" cy="125" rx="25" ry="20" fill="#fff3cd" stroke="#ffc107" stroke-width="2" 
+                         class="muscle-group" data-muscle="Spalle" style="cursor: pointer;"/>
+                <ellipse cx="245" cy="125" rx="25" ry="20" fill="#fff3cd" stroke="#ffc107" stroke-width="2" 
+                         class="muscle-group" data-muscle="Spalle" style="cursor: pointer;"/>
+                <text x="105" y="130" text-anchor="middle" font-size="10" font-weight="bold">SPALLE</text>
+                <text x="245" y="130" text-anchor="middle" font-size="10" font-weight="bold">SPALLE</text>
+                
+                <!-- Abs (Core) -->
+                <rect x="150" y="170" width="50" height="60" rx="8" fill="#f8d7da" stroke="#dc3545" stroke-width="2" 
+                      class="muscle-group" data-muscle="Core" style="cursor: pointer;"/>
+                <line x1="160" y1="185" x2="190" y2="185" stroke="#dc3545" stroke-width="1"/>
+                <line x1="160" y1="200" x2="190" y2="200" stroke="#dc3545" stroke-width="1"/>
+                <line x1="160" y1="215" x2="190" y2="215" stroke="#dc3545" stroke-width="1"/>
+                <text x="175" y="205" text-anchor="middle" font-size="12" font-weight="bold">ABS</text>
+                
+                <!-- Arms -->
+                <ellipse cx="80" cy="150" rx="15" ry="40" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                <ellipse cx="270" cy="150" rx="15" ry="40" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                
+                <!-- Biceps -->
+                <ellipse cx="80" cy="135" rx="12" ry="18" fill="#d4edda" stroke="#28a745" stroke-width="2" 
+                         class="muscle-group" data-muscle="Bicipiti" style="cursor: pointer;"/>
+                <ellipse cx="270" cy="135" rx="12" ry="18" fill="#d4edda" stroke="#28a745" stroke-width="2" 
+                         class="muscle-group" data-muscle="Bicipiti" style="cursor: pointer;"/>
+                <text x="80" y="140" text-anchor="middle" font-size="8" font-weight="bold">BIC</text>
+                <text x="270" y="140" text-anchor="middle" font-size="8" font-weight="bold">BIC</text>
+                
+                <!-- Forearms -->
+                <ellipse cx="75" cy="200" rx="12" ry="35" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                <ellipse cx="275" cy="200" rx="12" ry="35" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                
+                <!-- Legs -->
+                <ellipse cx="155" cy="280" rx="20" ry="60" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                <ellipse cx="195" cy="280" rx="20" ry="60" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                
+                <!-- Quadriceps -->
+                <ellipse cx="155" cy="260" rx="18" ry="35" fill="#e2e3e5" stroke="#6c757d" stroke-width="2" 
+                         class="muscle-group" data-muscle="Quadricipiti" style="cursor: pointer;"/>
+                <ellipse cx="195" cy="260" rx="18" ry="35" fill="#e2e3e5" stroke="#6c757d" stroke-width="2" 
+                         class="muscle-group" data-muscle="Quadricipiti" style="cursor: pointer;"/>
+                <text x="175" y="265" text-anchor="middle" font-size="10" font-weight="bold">QUAD</text>
+                
+                <!-- Lower legs -->
+                <ellipse cx="155" cy="380" rx="15" ry="50" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                <ellipse cx="195" cy="380" rx="15" ry="50" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                
+                <!-- Calves -->
+                <ellipse cx="155" cy="370" rx="12" ry="30" fill="#fff2cc" stroke="#d6b656" stroke-width="2" 
+                         class="muscle-group" data-muscle="Polpacci" style="cursor: pointer;"/>
+                <ellipse cx="195" cy="370" rx="12" ry="30" fill="#fff2cc" stroke="#d6b656" stroke-width="2" 
+                         class="muscle-group" data-muscle="Polpacci" style="cursor: pointer;"/>
+                <text x="175" y="375" text-anchor="middle" font-size="10" font-weight="bold">POLPACCI</text>
+            </svg>
+            '''),
+            id="front-view"
+        ),
+        
+        # Back View
+        Div(
+            NotStr('''
+            <svg id="back-view" width="350" height="600" viewBox="0 0 350 600" style="border: 1px solid #ccc; border-radius: 10px; display: none;">
+                <!-- Head -->
+                <ellipse cx="175" cy="50" rx="30" ry="35" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                
+                <!-- Neck -->
+                <rect x="160" y="80" width="30" height="25" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                
+                <!-- Torso -->
+                <path d="M120 105 Q175 100 230 105 L240 200 Q175 210 110 200 Z" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                
+                <!-- Upper Back (Dorso) -->
+                <ellipse cx="175" cy="140" rx="45" ry="30" fill="#d1ecf1" stroke="#17a2b8" stroke-width="2" 
+                         class="muscle-group" data-muscle="Dorso" style="cursor: pointer;"/>
+                <text x="175" y="145" text-anchor="middle" font-size="12" font-weight="bold">DORSO</text>
+                
+                <!-- Shoulders (Spalle) -->
+                <ellipse cx="105" cy="125" rx="25" ry="20" fill="#fff3cd" stroke="#ffc107" stroke-width="2" 
+                         class="muscle-group" data-muscle="Spalle" style="cursor: pointer;"/>
+                <ellipse cx="245" cy="125" rx="25" ry="20" fill="#fff3cd" stroke="#ffc107" stroke-width="2" 
+                         class="muscle-group" data-muscle="Spalle" style="cursor: pointer;"/>
+                <text x="105" y="130" text-anchor="middle" font-size="10" font-weight="bold">SPALLE</text>
+                <text x="245" y="130" text-anchor="middle" font-size="10" font-weight="bold">SPALLE</text>
+                
+                <!-- Lower Back -->
+                <rect x="150" y="170" width="50" height="40" rx="8" fill="#d1ecf1" stroke="#17a2b8" stroke-width="2" 
+                      class="muscle-group" data-muscle="Dorso" style="cursor: pointer;"/>
+                
+                <!-- Arms -->
+                <ellipse cx="80" cy="150" rx="15" ry="40" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                <ellipse cx="270" cy="150" rx="15" ry="40" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                
+                <!-- Triceps -->
+                <ellipse cx="80" cy="160" rx="10" ry="20" fill="#ffeaa7" stroke="#fdcb6e" stroke-width="2" 
+                         class="muscle-group" data-muscle="Tricipiti" style="cursor: pointer;"/>
+                <ellipse cx="270" cy="160" rx="10" ry="20" fill="#ffeaa7" stroke="#fdcb6e" stroke-width="2" 
+                         class="muscle-group" data-muscle="Tricipiti" style="cursor: pointer;"/>
+                <text x="80" y="165" text-anchor="middle" font-size="8" font-weight="bold">TRI</text>
+                <text x="270" y="165" text-anchor="middle" font-size="8" font-weight="bold">TRI</text>
+                
+                <!-- Forearms -->
+                <ellipse cx="75" cy="200" rx="12" ry="35" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                <ellipse cx="275" cy="200" rx="12" ry="35" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                
+                <!-- Glutes -->
+                <ellipse cx="155" cy="240" rx="20" ry="25" fill="#f1c0e8" stroke="#e83e8c" stroke-width="2" 
+                         class="muscle-group" data-muscle="Femorali/Glutei" style="cursor: pointer;"/>
+                <ellipse cx="195" cy="240" rx="20" ry="25" fill="#f1c0e8" stroke="#e83e8c" stroke-width="2" 
+                         class="muscle-group" data-muscle="Femorali/Glutei" style="cursor: pointer;"/>
+                <text x="175" y="245" text-anchor="middle" font-size="10" font-weight="bold">GLUTEI</text>
+                
+                <!-- Legs -->
+                <ellipse cx="155" cy="300" rx="20" ry="50" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                <ellipse cx="195" cy="300" rx="20" ry="50" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                
+                <!-- Hamstrings -->
+                <ellipse cx="155" cy="290" rx="18" ry="30" fill="#f1c0e8" stroke="#e83e8c" stroke-width="2" 
+                         class="muscle-group" data-muscle="Femorali/Glutei" style="cursor: pointer;"/>
+                <ellipse cx="195" cy="290" rx="18" ry="30" fill="#f1c0e8" stroke="#e83e8c" stroke-width="2" 
+                         class="muscle-group" data-muscle="Femorali/Glutei" style="cursor: pointer;"/>
+                <text x="175" y="295" text-anchor="middle" font-size="9" font-weight="bold">FEMORALI</text>
+                
+                <!-- Lower legs -->
+                <ellipse cx="155" cy="380" rx="15" ry="50" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                <ellipse cx="195" cy="380" rx="15" ry="50" fill="#fdbcb4" stroke="#333" stroke-width="2"/>
+                
+                <!-- Calves -->
+                <ellipse cx="155" cy="370" rx="12" ry="30" fill="#fff2cc" stroke="#d6b656" stroke-width="2" 
+                         class="muscle-group" data-muscle="Polpacci" style="cursor: pointer;"/>
+                <ellipse cx="195" cy="370" rx="12" ry="30" fill="#fff2cc" stroke="#d6b656" stroke-width="2" 
+                         class="muscle-group" data-muscle="Polpacci" style="cursor: pointer;"/>
+                <text x="175" y="375" text-anchor="middle" font-size="10" font-weight="bold">POLPACCI</text>
+            </svg>
+            '''),
+            id="back-view", style="display: none;"
+        )
+    )
+
+def muscle_selection_script():
+    return Script('''
+        let selectedMuscles = new Set();
+        
+        // Load saved selection from localStorage
+        function loadSelection() {
+            const saved = localStorage.getItem('selectedMuscles');
+            if (saved) {
+                selectedMuscles = new Set(JSON.parse(saved));
+                updateDisplay();
+                highlightSelected();
+            }
+        }
+        
+        // Save selection to localStorage
+        function saveToStorage() {
+            localStorage.setItem('selectedMuscles', JSON.stringify([...selectedMuscles]));
+        }
+        
+        // Update the display of selected muscles
+        function updateDisplay() {
+            const display = document.getElementById('selected-muscles');
+            if (selectedMuscles.size === 0) {
+                display.innerHTML = '<em>Nessun gruppo muscolare selezionato</em>';
+            } else {
+                const muscleList = [...selectedMuscles].map(muscle => 
+                    `<span style="background: #007bff; color: white; padding: 4px 8px; margin: 2px; border-radius: 4px; display: inline-block;">${muscle}</span>`
+                ).join(' ');
+                display.innerHTML = muscleList;
+            }
+        }
+        
+        // Highlight selected muscles in the diagram
+        function highlightSelected() {
+            document.querySelectorAll('.muscle-group').forEach(element => {
+                const muscle = element.getAttribute('data-muscle');
+                if (selectedMuscles.has(muscle)) {
+                    element.style.filter = 'brightness(0.7)';
+                    element.style.strokeWidth = '3';
+                } else {
+                    element.style.filter = 'brightness(1)';
+                    element.style.strokeWidth = '2';
+                }
+            });
+        }
+        
+        // Toggle muscle selection
+        function toggleMuscle(muscle) {
+            if (selectedMuscles.has(muscle)) {
+                selectedMuscles.delete(muscle);
+            } else {
+                selectedMuscles.add(muscle);
+            }
+            updateDisplay();
+            highlightSelected();
+            saveToStorage();
+        }
+        
+        // Save selection and send to backend
+        async function saveSelection() {
+            if (selectedMuscles.size === 0) {
+                alert('Seleziona almeno un gruppo muscolare!');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/save-muscles', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({muscles: [...selectedMuscles]})
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    alert(`✅ ${result.message}`);
+                } else {
+                    alert(`❌ Errore: ${result.message}`);
+                }
+            } catch (error) {
+                alert(`❌ Errore di connessione: ${error.message}`);
+            }
+        }
+        
+        // Reset selection
+        function resetSelection() {
+            selectedMuscles.clear();
+            updateDisplay();
+            highlightSelected();
+            saveToStorage();
+        }
+        
+        // Toggle between front and back view
+        function showFront() {
+            document.getElementById('front-view').style.display = 'block';
+            document.getElementById('back-view').style.display = 'none';
+            document.getElementById('front-btn').style.background = '#007bff';
+            document.getElementById('back-btn').style.background = '#6c757d';
+        }
+        
+        function showBack() {
+            document.getElementById('front-view').style.display = 'none';
+            document.getElementById('back-view').style.display = 'block';
+            document.getElementById('front-btn').style.background = '#6c757d';
+            document.getElementById('back-btn').style.background = '#007bff';
+        }
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add click handlers to muscle groups
+            document.querySelectorAll('.muscle-group').forEach(element => {
+                element.addEventListener('click', function() {
+                    const muscle = this.getAttribute('data-muscle');
+                    toggleMuscle(muscle);
+                });
+                
+                // Add hover effect
+                element.addEventListener('mouseenter', function() {
+                    this.style.opacity = '0.8';
+                });
+                
+                element.addEventListener('mouseleave', function() {
+                    this.style.opacity = '1';
+                });
+            });
+            
+            // Load saved selection
+            loadSelection();
+        });
+    ''')
 
 if __name__ == "__main__":
     serve()
