@@ -8,9 +8,8 @@ app, rt = fast_app(live=True)
 
 @rt("/")
 def get():
-    return Titled("VirGym - Generatore Schede",
+    return Titled("🏋️ VirGym - Generatore Automatico di Schede",
         Div(
-            H1("🏋️ VirGym - Generatore Automatico di Schede"),
             P("Genera schede di allenamento personalizzate per l'ipertrofia muscolare"),
             
             Div(
