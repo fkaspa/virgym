@@ -452,7 +452,7 @@ def genera_scheda(frequenza):
 # --- MENU PRINCIPALE ---
 def menu_principale():
     while True:
-        print("\n🏋️ === AUTOTRAIN - MENU PRINCIPALE ===")
+        print("\n🏋️ === VirGym - MENU PRINCIPALE ===")
         print("1. Genera scheda di allenamento")
         print("2. Gestione infortuni")
         print("0. Esci")

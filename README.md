@@ -1,6 +1,6 @@
-# AutoTrain - Generatore Automatico di Schede di Allenamento
+# VirGym - Generatore Automatico di Schede di Allenamento
 
-AutoTrain è un'applicazione Python che genera automaticamente schede di allenamento personalizzate per l'ipertrofia muscolare, con valutazione AI e gestione degli infortuni.
+VirGym è un'applicazione Python che genera automaticamente schede di allenamento personalizzate per l'ipertrofia muscolare, con valutazione AI e gestione degli infortuni.
 
 ## Funzionalità Principali
 
